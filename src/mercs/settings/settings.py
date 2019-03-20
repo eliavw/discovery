@@ -6,6 +6,7 @@ from ..utils.classlabels import collect_and_verify_clf_classlabels
 from ..utils.metadata import collect_feature_importances
 
 from ..utils.debug import debug_print
+
 VERBOSITY = 0
 
 
@@ -22,26 +23,22 @@ def create_settings():
 
     settings = {}
 
-    settings['induction'] = {'type':    'DT'}
+    settings["induction"] = {"type": "DT"}
 
-    settings['selection'] = {'type':    'Base',
-                             'its':     1,
-                             'param':   1}
+    settings["selection"] = {"type": "Base", "its": 1, "param": 1}
 
-    settings['prediction'] = {'type':   'MI',
-                              'its':    0.1,
-                              'param':  0.95}
+    settings["prediction"] = {"type": "MI", "its": 0.1, "param": 0.95}
 
-    settings['queries'] = {}
+    settings["queries"] = {}
 
-    settings['metadata'] = {}
+    settings["metadata"] = {}
 
-    settings['model_data'] = {}
+    settings["model_data"] = {}
 
     return settings
 
 
-def filter_kwargs_update_settings(s, prefix=None, delimiter='_', **kwargs):
+def filter_kwargs_update_settings(s, prefix=None, delimiter="_", **kwargs):
 
     param_map = _compile_param_map(prefix=prefix, delimiter=delimiter, **kwargs)
     return _update_settings_dict(s, param_map, **kwargs)
@@ -70,13 +67,13 @@ def update_meta_data(s, m_list, m_codes):
     """
     # TODO(elia): This is not data about the data (=metadata) but data about component models
 
-    s['clf_labels'] = collect_and_verify_clf_classlabels(m_list, m_codes)
-    s['FI'] = collect_feature_importances(m_list, m_codes)
+    s["clf_labels"] = collect_and_verify_clf_classlabels(m_list, m_codes)
+    s["FI"] = collect_feature_importances(m_list, m_codes)
 
     return s
 
 
-def update_query_settings(s, nb_atts, delimiter='_', **kwargs):
+def update_query_settings(s, nb_atts, delimiter="_", **kwargs):
     """
     Update query settings.
 
@@ -109,46 +106,56 @@ def update_query_settings(s, nb_atts, delimiter='_', **kwargs):
 
     """
 
-    param_map = _compile_param_map(prefix='qry', delimiter=delimiter, **kwargs)
+    param_map = _compile_param_map(prefix="qry", delimiter=delimiter, **kwargs)
     relevant_kwargs = {v: kwargs[k] for k, v in param_map.items()}
 
-    if 'codes' in relevant_kwargs:
+    if "codes" in relevant_kwargs:
         # Check codes and if they do not comply replace by default
-        codes = relevant_kwargs['codes']
+        codes = relevant_kwargs["codes"]
 
         msg = """
         codes are:          {}\n
         type of codes is:   {}\n
-        """.format(codes, type(codes))
+        """.format(
+            codes, type(codes)
+        )
         debug_print(msg, V=VERBOSITY)
 
         if _verify_decent_query_codes(codes, nb_atts):
             # Our decency check ensures this conversion will work
-            s['codes'] = np.array(codes)
+            s["codes"] = np.array(codes)
         else:
             msg = """
             Provided query codes:\t{}\n
             Failed decency tests and are therefore replaced by default codes.
-            """.format(codes)
+            """.format(
+                codes
+            )
             warnings.warn(msg)
-            s['codes'] = _generate_default_query_code(nb_atts)
+            s["codes"] = _generate_default_query_code(nb_atts)
 
-        s['q_desc'], s['q_targ'], s['q_miss'] = codes_to_query(s['codes'])
-    elif 'code' in relevant_kwargs:
+        s["q_desc"], s["q_targ"], s["q_miss"] = codes_to_query(s["codes"])
+    elif "code" in relevant_kwargs:
         # Wrap single code in extra array for consistency
         msg = """
         In file:                                {}\n
         I am reading a single query code, i.e.: {}\n
         Query code is of type:                  {}\n
-        """.format(__file__, relevant_kwargs['code'], type(relevant_kwargs['code']))
+        """.format(
+            __file__, relevant_kwargs["code"], type(relevant_kwargs["code"])
+        )
         debug_print(msg, V=VERBOSITY)
 
-        codes = np.atleast_2d(relevant_kwargs['code'])
-        update_query_settings(s, nb_atts, qry_codes=codes)  # N.B.: Do NOT pass the delimiter here!
+        codes = np.atleast_2d(relevant_kwargs["code"])
+        update_query_settings(
+            s, nb_atts, qry_codes=codes
+        )  # N.B.: Do NOT pass the delimiter here!
     else:
         # Nothing provided in kwargs, we check what is already present.
-        codes = s.get('codes', None)
-        update_query_settings(s, nb_atts, qry_codes=codes) # N.B.: Do NOT pass the delimiter here!
+        codes = s.get("codes", None)
+        update_query_settings(
+            s, nb_atts, qry_codes=codes
+        )  # N.B.: Do NOT pass the delimiter here!
 
     return s
 
@@ -184,7 +191,7 @@ def _update_settings_dict(settings, param_map, **kwargs):
     return settings
 
 
-def _compile_param_map(prefix=None, delimiter='_', **kwargs):
+def _compile_param_map(prefix=None, delimiter="_", **kwargs):
     """
     Automatically compile parameter map.
 
@@ -217,11 +224,9 @@ def _compile_param_map(prefix=None, delimiter='_', **kwargs):
     if prefix is not None:
         prefix += delimiter
     else:
-        prefix = ''
+        prefix = ""
 
-    param_map = {k: k.split(prefix)[1]
-                 for k in kwargs
-                 if k.startswith(prefix)}
+    param_map = {k: k.split(prefix)[1] for k in kwargs if k.startswith(prefix)}
 
     return param_map
 
@@ -251,8 +256,8 @@ def _generate_default_query_code(nb_atts):
     """
     assert isinstance(nb_atts, int) and nb_atts >= 2
 
-    desc_encoding = encode_attribute(0,[0],[1])
-    targ_encoding = encode_attribute(1,[0],[1])
+    desc_encoding = encode_attribute(0, [0], [1])
+    targ_encoding = encode_attribute(1, [0], [1])
 
     q_code = np.full(nb_atts, desc_encoding)
     q_code[-1] = targ_encoding
@@ -267,7 +272,9 @@ def _verify_decent_query_codes(codes, nb_atts):
         msg = """
         Provided query codes:\t{}\n
         Failed decency test: check for NoneType.
-        """.format(codes)
+        """.format(
+            codes
+        )
         warnings.warn(msg)
         result = False
     elif isinstance(codes, np.ndarray):
@@ -283,9 +290,12 @@ def _verify_decent_query_codes(codes, nb_atts):
 def _check_all_lengths(codes, nb_atts):
     assert isinstance(codes, list)
 
-    errors = [1 for code in codes
-              if not isinstance(code, (list, tuple))
-              if len(code) != nb_atts]
+    errors = [
+        1
+        for code in codes
+        if not isinstance(code, (list, tuple))
+        if len(code) != nb_atts
+    ]
 
     check = len(errors) == 0
 
@@ -293,7 +303,9 @@ def _check_all_lengths(codes, nb_atts):
         msg = """
         Provided query codes:\t{}\n
         Failed decency test: check all lengths.
-        """.format(codes)
+        """.format(
+            codes
+        )
         warnings.warn(msg)
 
     return check

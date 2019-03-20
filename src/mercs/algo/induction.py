@@ -20,6 +20,7 @@ from ..utils.metadata import only_nominal_targ, only_numeric_targ
 from ..utils.keywords import *
 
 from ..utils.debug import debug_print
+
 VERBOSITY = 0
 
 
@@ -55,13 +56,28 @@ def base_ind_algo(metadata, settings, m_targ):
     nb_mod = len(m_targ)
     assert nb_mod > 0
 
-    is_nominal = metadata['is_nominal']
+    is_nominal = metadata["is_nominal"]
 
-    msg = "is_nominal in this model is: {}".format(is_nominal)
+    msg = """
+    "is_nominal in this model is:   {}
+    """.format(
+        is_nominal
+    )
     debug_print(msg, V=VERBOSITY)
 
-    m_list = [induce_model(settings, is_nominal, m_targ[i])
-              for i in range(nb_mod)]
+    m_list = [None for _ in range(nb_mod)]
+    for m_idx in range(nb_mod):
+        model = induce_model(settings, is_nominal, m_targ[m_idx])
+        m_list[m_idx] = model
+
+        msg = """
+        m_idx:                  {}
+        settings:               {}
+        model.get_params():     {}
+        """.format(
+            m_idx, settings, model.get_params()
+        )
+        debug_print(msg, V=VERBOSITY)
 
     return m_list
 
@@ -104,9 +120,12 @@ def induce_clf(s):
     Initializes the actual model
     """
 
-    mod_type = s['type']
-    model = s.get('classifier', None)
-    params = {k: v for k,v in s.items() if not k in {'type', 'flatten'}}
+    mod_type = s["type"]
+    model = s.get("classifier", None)
+    params = {k: v for k, v in s.items() if k not in {"type",
+                                                      "flatten",
+                                                      "regressor",
+                                                      "classifier"}}
 
     if model is not None:
         clf = model(**params)
@@ -129,9 +148,20 @@ def induce_rgr(s):
     Initializes the actual model
     """
 
-    mod_type = s['type']
-    model = s.get('regressor', None)
-    params = {k:v for k, v in s.items() if not {'type', 'flatten'}}
+    msg = """
+    Init regressor.
+    Parameters:     {}
+    """.format(
+        s
+    )
+    debug_print(msg, V=VERBOSITY, level=2)
+
+    mod_type = s["type"]
+    model = s.get("regressor", None)
+    params = {k: v for k, v in s.items() if k not in {"type",
+                                                      "flatten",
+                                                      "regressor",
+                                                      "classifier"}}
 
     if model is not None:
         rgr = model(**params)
@@ -144,5 +174,3 @@ def induce_rgr(s):
         raise TypeError(msg)
 
     return rgr
-
-

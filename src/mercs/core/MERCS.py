@@ -1,26 +1,31 @@
 import json
 
-from sklearn.preprocessing import Imputer
+from sklearn.impute import SimpleImputer
 from timeit import default_timer
 
 from ..algo.induction import base_ind_algo
-from ..algo.prediction import (mi_pred_algo,
-                               ma_pred_algo,
-                               mafi_pred_algo,
-                               it_pred_algo,
-                               rw_pred_algo,
-                               full_prune_strat)
+from ..algo.prediction import (
+    mi_pred_algo,
+    ma_pred_algo,
+    mafi_pred_algo,
+    it_pred_algo,
+    rw_pred_algo,
+    full_prune_strat,
+)
 from ..algo.selection import *
 from ..io.io import save_output_data
 from ..models.PolyModel import *
 from ..settings import *
 from ..utils.keywords import *
-from ..utils.metadata import (get_metadata_df,
-                              extract_nominal_numeric_attributes,
-                              only_nominal_targ,
-                              only_numeric_targ)
+from ..utils.metadata import (
+    get_metadata_df,
+    extract_nominal_numeric_attributes,
+    only_nominal_targ,
+    only_numeric_targ,
+)
 
 from ..utils.debug import debug_print
+
 VERBOSITY = 0
 
 
@@ -55,7 +60,7 @@ class MERCS(object):
         self.m_codes = None
         self.m_list = None
         self.q_models = None
-        self.imputator = None
+        self.imputer = None
 
         return
 
@@ -97,28 +102,29 @@ class MERCS(object):
 
         # 1. Prelims
         tick = default_timer()
-        self.s['metadata'] = get_metadata_df(X)
+        self.s["metadata"] = get_metadata_df(X)
 
         msg = """
         metadata of our model is: {}
-        """.format(self.s['metadata'])
-        debug_print(msg,V=VERBOSITY)
+        """.format(
+            self.s["metadata"]
+        )
+        debug_print(msg, V=VERBOSITY)
 
-        self.update_settings(mode='fit', **kwargs)
-        self.fit_imputator(X)
+        self.update_settings(mode="fit", **kwargs)
+        self.fit_imputer(X)
 
         # 2. Selection = Prepare Induction
-        self.m_codes = self.perform_selection(self.s['metadata'])
+        self.m_codes = self.perform_selection(self.s["metadata"])
 
         # 3. Induction
-        self.m_codes, self.m_list = self.perform_induction(X,
-                                                           self.m_codes,
-                                                           self.s['induction'],
-                                                           self.s['metadata'])
+        self.m_codes, self.m_list = self.perform_induction(
+            X, self.m_codes, self.s["induction"], self.s["metadata"]
+        )
         # 4. Post processing
         tock = default_timer()
-        self.update_settings(mode='metadata')   # Save info on learned models
-        self.update_settings(mode='model_data', mod_ind_time=tock-tick)
+        self.update_settings(mode="metadata")  # Save info on learned models
+        self.update_settings(mode="model_data", mod_ind_time=tock - tick)
 
         return
 
@@ -138,33 +144,38 @@ class MERCS(object):
 
         # 1. Preliminaries
         tick = default_timer()
-        self.update_settings(mode='predict', **kwargs)
+        self.update_settings(mode="predict", **kwargs)
 
         # 2. Prediction = Prepare Inference
-        self.q_models = self.query_to_model(self.m_list,
-                                            self.m_codes,
-                                            self.s['prediction'],
-                                            self.s['metadata'],
-                                            self.s['queries']['codes'][[q_idx]])
+        self.q_models = self.query_to_model(
+            self.m_list,
+            self.m_codes,
+            self.s["prediction"],
+            self.s["metadata"],
+            self.s["queries"]["codes"][[q_idx]],
+        )
 
         msg = """
         Predicting query id: \t{}\n
         Predicting query code: \t{}\n
-        """.format(q_idx, self.s['queries']['codes'][[q_idx]])
+        """.format(
+            q_idx, self.s["queries"]["codes"][[q_idx]]
+        )
         debug_print(msg, V=VERBOSITY)
 
         # 3. Inference
-        X_query = perform_imputation(X,
-                                     self.s['queries']['codes'][q_idx],
-                                     self.imputator)  # Generate X data
+        X_query = perform_imputation(
+            X, self.s["queries"]["codes"][q_idx], self.imputer
+        )  # Generate X data
 
         Y = self.q_models[q_idx].predict(X_query)
 
         # 4. Post processing
         tock = default_timer()
-        self.update_settings(mode='model_data', mod_inf_time=tock - tick)
+        self.update_settings(mode="model_data", mod_inf_time=tock - tick)
 
-        del X_query, self.q_models
+        del X_query
+        # del self.q_models
 
         return Y
 
@@ -184,24 +195,26 @@ class MERCS(object):
 
         tick = default_timer()
         # 0. Settings
-        self.update_settings(mode='predict', **kwargs)
+        self.update_settings(mode="predict", **kwargs)
 
         # 1. Prediction = Prepare Inference
-        self.q_models = self.query_to_model(self.m_list,
-                                            self.m_codes,
-                                            self.s['prediction'],
-                                            self.s['metadata'],
-                                            self.s['queries']['codes'][[q_idx]])
+        self.q_models = self.query_to_model(
+            self.m_list,
+            self.m_codes,
+            self.s["prediction"],
+            self.s["metadata"],
+            self.s["queries"]["codes"][[q_idx]],
+        )
         # 2. Inference
-        X_query = perform_imputation(X,
-                                     self.s['queries']['codes'][q_idx],
-                                     self.imputator)  # Generate X data
+        X_query = perform_imputation(
+            X, self.s["queries"]["codes"][q_idx], self.imputer
+        )  # Generate X data
 
         Y_proba = self.q_models[q_idx].predict_proba(X_query)
         del X_query
 
         tock = default_timer()
-        self.update_settings(mode='model_data', mod_inf_time=tock-tick)
+        self.update_settings(mode="model_data", mod_inf_time=tock - tick)
 
         return Y_proba
 
@@ -209,37 +222,37 @@ class MERCS(object):
 
         # 1. Preliminaries
         tick = default_timer()
-        self.update_settings(mode='batch_predict', **kwargs)
+        self.update_settings(mode="batch_predict", **kwargs)
 
-        nb_queries = self.s['queries']['codes'].shape[0]
+        nb_queries = self.s["queries"]["codes"].shape[0]
         assert nb_queries == len(fnames)
 
         # 1. Prediction = Prepare Inference
-        self.q_models = self.query_to_model(self.m_list,
-                                            self.m_codes,
-                                            self.s['prediction'],
-                                            self.s['metadata'],
-                                            self.s['queries']['codes'])
+        self.q_models = self.query_to_model(
+            self.m_list,
+            self.m_codes,
+            self.s["prediction"],
+            self.s["metadata"],
+            self.s["queries"]["codes"],
+        )
 
         # 2. Inference
         for q_idx in range(nb_queries):
             # Generate X data for queries with index q_idx
-            X_query = perform_imputation(X,
-                                         self.s['queries']['codes'][q_idx],
-                                         self.imputator)
+            X_query = perform_imputation(
+                X, self.s["queries"]["codes"][q_idx], self.imputer
+            )
 
             Y = self.q_models[q_idx].predict(X_query)
 
             del X_query
 
-            save_output_data(Y,
-                             self.s['queries']['q_targ'][q_idx],
-                             fnames[q_idx])
+            save_output_data(Y, self.s["queries"]["q_targ"][q_idx], fnames[q_idx])
             del Y
 
         # 3. Post processing
         tock = default_timer()
-        self.update_settings(mode='model_data', mod_inf_time=tock-tick)
+        self.update_settings(mode="model_data", mod_inf_time=tock - tick)
 
         return
 
@@ -269,38 +282,40 @@ class MERCS(object):
         :return:
         """
 
-        if mode in {'induction','ind'}:
-            self.s['induction'] = new_settings
-        elif mode in {'selection','sel'}:
-            self.s['selection'] = new_settings
-        elif mode in {'prediction', 'pred'}:
-            self.s['prediction'] = new_settings
-        elif mode in {'queries', 'queries', 'q', 'qry'}:
-            self.s['queries'] = new_settings
-        elif mode in {'metadata', 'md'}:
-            self.s['metadata'] = new_settings
-        elif mode in {'model_data', 'mod'}:
-            self.s['model_data'] = new_settings
-        elif mode in {'algo', 'do', 'main_old'}:
-            self.import_settings(new_settings['induction'], mode='induction')
-            self.import_settings(new_settings['selection'], mode='selection')
-            self.import_settings(new_settings['prediction'], mode='prediction')
-        elif mode == 'fit':
+        if mode in {"induction", "ind"}:
+            self.s["induction"] = new_settings
+        elif mode in {"selection", "sel"}:
+            self.s["selection"] = new_settings
+        elif mode in {"prediction", "pred"}:
+            self.s["prediction"] = new_settings
+        elif mode in {"queries", "queries", "q", "qry"}:
+            self.s["queries"] = new_settings
+        elif mode in {"metadata", "md"}:
+            self.s["metadata"] = new_settings
+        elif mode in {"model_data", "mod"}:
+            self.s["model_data"] = new_settings
+        elif mode in {"algo", "do", "main_old"}:
+            self.import_settings(new_settings["induction"], mode="induction")
+            self.import_settings(new_settings["selection"], mode="selection")
+            self.import_settings(new_settings["prediction"], mode="prediction")
+        elif mode == "fit":
             # Assuming that new_settings has keys induction and selection
-            self.import_settings(new_settings['induction'], mode='induction')
-            self.import_settings(new_settings['selection'], mode='selection')
-        elif mode in {'predict','batch_predict'}:
+            self.import_settings(new_settings["induction"], mode="induction")
+            self.import_settings(new_settings["selection"], mode="selection")
+        elif mode in {"predict", "batch_predict"}:
             # Assuming that new_settings has key prediction
-            self.import_settings(new_settings['prediction'], mode='prediction')
+            self.import_settings(new_settings["prediction"], mode="prediction")
         else:
             # If no mode provided, assume global settings
-            warnings.warn("Did not recognize mode: {}."
-                          "Assuming algorithm settings.".format(mode))
+            warnings.warn(
+                "Did not recognize mode: {}."
+                "Assuming algorithm settings.".format(mode)
+            )
             self.s = new_settings
 
         return
 
-    def update_settings(self, mode=None, delimiter='_', **kwargs):
+    def update_settings(self, mode=None, delimiter="_", **kwargs):
         """
         Update the settings dictionary.
 
@@ -310,86 +325,84 @@ class MERCS(object):
         :return:
         """
 
-        if mode in {'induction','ind'}:
-            self.s['induction'] = filter_kwargs_update_settings(self.s['induction'],
-                                                                prefix='ind',
-                                                                delimiter=delimiter,
-                                                                **kwargs)
-        elif mode in {'selection','sel'}:
-            self.s['selection'] = filter_kwargs_update_settings(self.s['selection'],
-                                                                prefix='sel',
-                                                                delimiter=delimiter,
-                                                                **kwargs)
-        elif mode in {'prediction','pred'}:
-            self.s['prediction'] = filter_kwargs_update_settings(self.s['prediction'],
-                                                                 prefix='predict',
-                                                                 delimiter=delimiter,
-                                                                 **kwargs)
-        elif mode in {'queries','query', 'q', 'qry'}:
-            nb_atts = self.s['metadata'].get('nb_atts', 0)
+        if mode in {"induction", "ind"}:
+            self.s["induction"] = filter_kwargs_update_settings(
+                self.s["induction"], prefix="ind", delimiter=delimiter, **kwargs
+            )
+        elif mode in {"selection", "sel"}:
+            self.s["selection"] = filter_kwargs_update_settings(
+                self.s["selection"], prefix="sel", delimiter=delimiter, **kwargs
+            )
+        elif mode in {"prediction", "pred"}:
+            self.s["prediction"] = filter_kwargs_update_settings(
+                self.s["prediction"], prefix="predict", delimiter=delimiter, **kwargs
+            )
+        elif mode in {"queries", "query", "q", "qry"}:
+            nb_atts = self.s["metadata"].get("nb_atts", 0)
             if nb_atts > 1:
-                self.s['queries'] = update_query_settings(self.s['queries'],
-                                                          nb_atts,
-                                                          delimiter=delimiter,
-                                                          **kwargs)
-        elif mode in {'metadata','md'}:
-            self.s['metadata'] = update_meta_data(self.s['metadata'],
-                                                  self.m_list,
-                                                  self.m_codes)
-        elif mode in {'model_data'}:
-            self.s['model_data'] = filter_kwargs_update_settings(self.s['model_data'],
-                                                                 prefix='mod',
-                                                                 delimiter=delimiter,
-                                                                 **kwargs)
-        elif mode in {'fit'}:
-            self.update_settings(mode='induction', delimiter=delimiter, **kwargs)
-            self.update_settings(mode='selection', delimiter=delimiter, **kwargs)
-        elif mode in {'predict','batch_predict'}:
-            self.update_settings(mode='prediction', delimiter=delimiter, **kwargs)
-            self.update_settings(mode='qry', delimiter=delimiter, **kwargs)
+                self.s["queries"] = update_query_settings(
+                    self.s["queries"], nb_atts, delimiter=delimiter, **kwargs
+                )
+        elif mode in {"metadata", "md"}:
+            self.s["metadata"] = update_meta_data(
+                self.s["metadata"], self.m_list, self.m_codes
+            )
+        elif mode in {"model_data"}:
+            self.s["model_data"] = filter_kwargs_update_settings(
+                self.s["model_data"], prefix="mod", delimiter=delimiter, **kwargs
+            )
+        elif mode in {"fit"}:
+            self.update_settings(mode="induction", delimiter=delimiter, **kwargs)
+            self.update_settings(mode="selection", delimiter=delimiter, **kwargs)
+        elif mode in {"predict", "batch_predict"}:
+            self.update_settings(mode="prediction", delimiter=delimiter, **kwargs)
+            self.update_settings(mode="qry", delimiter=delimiter, **kwargs)
         else:
-            warnings.warn("Did not recognize mode: {}. "
-                          "Updating all settings.".format(mode))
-            self.update_settings(mode='induction', delimiter=delimiter, **kwargs)
-            self.update_settings(mode='selection', delimiter=delimiter, **kwargs)
-            self.update_settings(mode='prediction', delimiter=delimiter, **kwargs)
-            self.update_settings(mode='queries', delimiter=delimiter, **kwargs)
-            self.update_settings(mode='metadata', delimiter=delimiter, **kwargs)
-            self.update_settings(mode='model_data', delimiter=delimiter, **kwargs)
+            warnings.warn(
+                "Did not recognize mode: {}. " "Updating all settings.".format(mode)
+            )
+            self.update_settings(mode="induction", delimiter=delimiter, **kwargs)
+            self.update_settings(mode="selection", delimiter=delimiter, **kwargs)
+            self.update_settings(mode="prediction", delimiter=delimiter, **kwargs)
+            self.update_settings(mode="queries", delimiter=delimiter, **kwargs)
+            self.update_settings(mode="metadata", delimiter=delimiter, **kwargs)
+            self.update_settings(mode="model_data", delimiter=delimiter, **kwargs)
 
         return
 
-    def fit_imputator(self, X):
+    def fit_imputer(self, X):
         """
-        Construct and fit an imputator based on input data_csv.
+        Construct and fit an imputer based on input data_csv.
 
         This to fill in missing values later on.
         """
-        imputator = Imputer(missing_values='NaN',
-                            strategy='most_frequent',
-                            axis=0)
-        imputator.fit(X)
+        imputer = SimpleImputer(missing_values=np.nan, strategy="most_frequent")
+        imputer.fit(X)
 
-        self.imputator = imputator
+        self.imputer = imputer
 
         return
 
     # 1. Selection = Prepare Induction
     def perform_selection(self, metadata):
 
-        if only_nominal_targ(metadata['is_nominal']):
+        if only_nominal_targ(metadata["is_nominal"]):
             m_codes = self.perform_selection_algorithm(metadata)
-        elif only_numeric_targ(metadata['is_nominal']):
+        elif only_numeric_targ(metadata["is_nominal"]):
             m_codes = self.perform_selection_algorithm(metadata)
         else:
             # Mixed case requires special treatment
-            nominal_atts, numeric_atts = extract_nominal_numeric_attributes(self.s['metadata'])
+            nominal_atts, numeric_atts = extract_nominal_numeric_attributes(
+                self.s["metadata"]
+            )
 
-            nominal_m_codes = self.perform_selection_algorithm(self.s['metadata'],
-                                                               target_atts_list=nominal_atts)
+            nominal_m_codes = self.perform_selection_algorithm(
+                self.s["metadata"], target_atts_list=nominal_atts
+            )
 
-            numeric_m_codes = self.perform_selection_algorithm(self.s['metadata'],
-                                                               target_atts_list=numeric_atts)
+            numeric_m_codes = self.perform_selection_algorithm(
+                self.s["metadata"], target_atts_list=numeric_atts
+            )
             m_codes = np.concatenate((nominal_m_codes, numeric_m_codes))
 
         return m_codes
@@ -414,28 +427,31 @@ class MERCS(object):
 
         """
 
-        sel_type = self.s['selection']['type']
+        sel_type = self.s["selection"]["type"]
         keywords = kw_sel_type()
 
-        if sel_type in keywords['base']:
-            m_codes = base_selection_algo(metadata,
-                                          self.s['selection'],
-                                          target_atts_list=target_atts_list)
-        elif sel_type in keywords['random']:
-            m_codes = random_selection_algo(metadata,
-                                            self.s['selection'],
-                                            target_atts_list=target_atts_list)
+        if sel_type in keywords["base"]:
+            m_codes = base_selection_algo(
+                metadata, self.s["selection"], target_atts_list=target_atts_list
+            )
+        elif sel_type in keywords["random"]:
+            m_codes = random_selection_algo(
+                metadata, self.s["selection"], target_atts_list=target_atts_list
+            )
         else:
             msg = """
             Did not recognize user-provided selection algorithm {}
             Available algorithms are {}
             Assuming `base` selection instead
-            """.format(sel_type, keywords.keys())
+            """.format(
+                sel_type, keywords.keys()
+            )
             warnings.warn(msg)
 
-            self.s['selection']['type'] = next(iter(keywords['base']))
-            m_codes = self.perform_selection_algorithm(metadata,
-                                                       target_atts_list=target_atts_list)
+            self.s["selection"]["type"] = next(iter(keywords["base"]))
+            m_codes = self.perform_selection_algorithm(
+                metadata, target_atts_list=target_atts_list
+            )
 
         return m_codes
 
@@ -461,26 +477,30 @@ class MERCS(object):
             m_atts = m_desc[m_idx] + m_targ[m_idx]
             X_Y = df.iloc[:, m_atts].dropna().values
 
-            X = X_Y[:, :len(m_desc[m_idx])]
-            Y = X_Y[:, len(m_desc[m_idx]):]
+            X = X_Y[:, : len(m_desc[m_idx])]
+            Y = X_Y[:, len(m_desc[m_idx]) :]
 
-            msg="""
+            msg = """
             X.shape: {}\n
             Y.shape: {}\n
-            """.format(X.shape, Y.shape)
+            """.format(
+                X.shape, Y.shape
+            )
             debug_print(msg, V=VERBOSITY, warn=True)
 
             assert X.shape[1] == len(m_desc[m_idx])
             assert Y.shape[1] == len(m_targ[m_idx])
 
             # Convert np.array with shape (m,1) to shape (m,)
-            if 1 in list(X.shape): X = X.ravel()
-            if 1 in list(Y.shape): Y = Y.ravel()
+            if 1 in list(X.shape):
+                X = X.ravel()
+            if 1 in list(Y.shape):
+                Y = Y.ravel()
 
             m_list[m_idx].fit(X, Y)
             del X, Y, X_Y
 
-        flatten = self.s['induction'].get('flatten', False)
+        flatten = self.s["induction"].get("flatten", False)
         if flatten:
             m_list, m_codes = self.flatten_model(m_list, m_codes)
 
@@ -527,89 +547,81 @@ class MERCS(object):
         # TODO: Optimize this! Many things are unnecessarily re-derived
 
         # Prelims
-        new_settings = {**settings,
-                        'clf_labels':   metadata['clf_labels'],
-                        'FI':           metadata['FI']} # TODO(elia): This is crap!
+        new_settings = {
+            **settings,
+            "clf_labels": metadata["clf_labels"],
+            "FI": metadata["FI"],
+        }  # TODO(elia): This is crap!
 
-        if 'algo' in new_settings.keys():
-            algo = new_settings.get('algo', 'MI')
+        if "algo" in new_settings.keys():
+            algo = new_settings.get("algo", "MI")
         else:
             # Legacy compatibility.
-            algo = new_settings.get('type', 'MI')
+            algo = new_settings.get("type", "MI")
 
         # Actual work
-        if algo in {'MI', 'default'}:
+        if algo in {"MI", "default"}:
             mas, aas = mi_pred_algo(m_codes, q_codes)
-            query_models = self.strat_to_model(m_list,
-                                               m_codes,
-                                               q_codes,
-                                               mas,
-                                               aas,
-                                               metadata)
-        elif algo in {'MA', 'most-appropriate'}:
+            query_models = self.strategy_to_model(
+                m_list, m_codes, q_codes, mas, aas, metadata
+            )
+        elif algo in {"MA", "most-appropriate"}:
             mas, aas = ma_pred_algo(m_codes, q_codes, new_settings)
-            query_models = self.strat_to_model(m_list,
-                                               m_codes,
-                                               q_codes,
-                                               mas,
-                                               aas,
-                                               metadata)
-        elif algo in {'MAFI', 'most-appropriate-feature-importance'}:
+            query_models = self.strategy_to_model(
+                m_list, m_codes, q_codes, mas, aas, metadata
+            )
+        elif algo in {"MAFI", "most-appropriate-feature-importance"}:
             mas, aas = mafi_pred_algo(m_codes, q_codes, new_settings)
-            query_models = self.strat_to_model(m_list,
-                                               m_codes,
-                                               q_codes,
-                                               mas,
-                                               aas,
-                                               metadata)
-        elif algo in {'IT', 'iterative'}:
+            query_models = self.strategy_to_model(
+                m_list, m_codes, q_codes, mas, aas, metadata
+            )
+        elif algo in {"IT", "iterative"}:
             mas, aas = it_pred_algo(m_codes, q_codes, new_settings)
             for i, query_code in enumerate(q_codes):
                 # TODO(elia) This should not happen here
                 mas[i], aas[i] = full_prune_strat(m_codes, q_codes[i], mas[i], aas[i])
-            query_models = self.strat_to_model(m_list,
-                                               m_codes,
-                                               q_codes,
-                                               mas,
-                                               aas,
-                                               metadata)
-        elif algo in {'RW', 'random-walks'}:
-            assert isinstance(new_settings['param'], int)
-            nb_walks = new_settings['param']
+            query_models = self.strategy_to_model(
+                m_list, m_codes, q_codes, mas, aas, metadata
+            )
+        elif algo in {"RW", "random-walks"}:
+            assert isinstance(new_settings["param"], int)
+            nb_walks = new_settings["param"]
             all_q_mods = [None] * nb_walks
 
             for rw_idx in range(nb_walks):
                 mas, aas = rw_pred_algo(m_codes, q_codes, new_settings)
 
-                all_q_mods[rw_idx] = self.strat_to_model(m_list,
-                                                         m_codes,
-                                                         q_codes,
-                                                         mas,
-                                                         aas,
-                                                         metadata)
+                all_q_mods[rw_idx] = self.strategy_to_model(m_list,
+                                                            m_codes,
+                                                            q_codes,
+                                                            mas,
+                                                            aas,
+                                                            metadata)
 
             all_q_mods = np.array(all_q_mods)
             _, q_targ, _ = codes_to_query(q_codes)
-            query_models = [build_ensemble_model(all_q_mods[:, i], targ, metadata)
-                            for i, targ in enumerate(q_targ)]
+            query_models = [
+                build_ensemble_model(all_q_mods[:, i], targ, metadata)
+                for i, targ in enumerate(q_targ)
+            ]
         else:
             msg = """
             \nDid not recognize prediction method: '{}'\n
             Assuming MI algorithm instead.
-            """.format(new_settings['type'])
+            """.format(
+                new_settings["type"]
+            )
             warnings.warn(msg)
 
-            settings['type'] = 'MI'
-            query_models = self.query_to_model(m_list,
-                                               m_codes,
-                                               settings,
-                                               metadata,
-                                               q_codes)
+            settings["type"] = "MI"
+            query_models = self.query_to_model(
+                m_list, m_codes, settings, metadata, q_codes
+            )
 
         return query_models
 
     @staticmethod
-    def strat_to_model(m_list, m_codes, q_codes, mas, aas, metadata):
+    def strategy_to_model(m_list, m_codes, q_codes, mas, aas, metadata):
         """
         Convert the MAS and AAS to a single, grouped model.
 
@@ -631,12 +643,16 @@ class MERCS(object):
         _, q_targ, _ = codes_to_query(q_codes)
 
         # Convert every MAS-AAS combination to a dedicated model
-        query_models = [build_chained_model(m_list, m_desc, m_targ, q_targ[i], mas[i], aas[i], metadata)
-                        for i in range(len(q_codes))]
+        query_models = [
+            build_chained_model(
+                m_list, m_desc, m_targ, q_targ[i], mas[i], aas[i], metadata
+            )
+            for i in range(len(q_codes))
+        ]
 
         return np.array(query_models)
 
-    # 4. Advanced functionalities
+    # 4. Extra stuff
     def merge(self, other):
         """
         Merge this MERCS model with another.
@@ -656,8 +672,8 @@ class MERCS(object):
         self.m_codes = np.concatenate((own_codes, new_codes))
         self.m_list.extend(other.m_list)
 
-        self.q_models = None # Just a reset
-        self.update_settings(mode='metadata') # Save info on learned models
+        self.q_models = None  # Just a reset
+        self.update_settings(mode="metadata")  # Save info on learned models
 
         return
 
@@ -693,7 +709,9 @@ class MERCS(object):
                 codes = np.tile(m_codes[i], (len(m), 1))
                 new_m_codes = np.concatenate((new_m_codes, codes))
 
-            new_m_codes = new_m_codes[1:]  # First line was filled in as an initialization and has to be gone.
+            new_m_codes = new_m_codes[
+                1:
+            ]  # First line was filled in as an initialization and has to be gone.
 
             return new_m_list, new_m_codes
 

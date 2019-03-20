@@ -86,7 +86,9 @@ def code_to_query(code, attributes=None):
             Did not recognize encoding: {}\n
             This occured in code: {}\n
             Ignoring this entry.
-            """.format(code[i], code)
+            """.format(
+                code[i], code
+            )
             warnings.warn(msg)
 
     return desc, targ, miss
@@ -99,8 +101,10 @@ def queries_to_codes(q_desc, q_targ, q_miss, atts=None):
     if atts is None:
         atts = determine_atts(q_desc[0], q_targ[0], q_miss[0])
 
-    codes = [query_to_code(q_desc[i], q_targ[i], q_miss[i], atts=atts)
-             for i in range(nb_queries)]
+    codes = [
+        query_to_code(q_desc[i], q_targ[i], q_miss[i], atts=atts)
+        for i in range(nb_queries)
+    ]
 
     return codes
 

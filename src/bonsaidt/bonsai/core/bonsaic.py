@@ -14,16 +14,15 @@ from scipy.special import expit
 from sklearn.neighbors import KernelDensity
 import time
 
-from bonsai.core._bonsaic import reorder, sketch, apply_tree
-from bonsai.core._utils import (
-    reconstruct_tree,
-    get_canvas_dim,
-    setup_canvas_na,
-    setup_canvas,
-    get_child_branch,
-    tunnel,
-    swap,
-)
+from inspect import signature
+from ._bonsaic import reorder, sketch, apply_tree
+from ._utils import (reconstruct_tree,
+                     get_canvas_dim,
+                     setup_canvas_na,
+                     setup_canvas,
+                     get_child_branch,
+                     tunnel,
+                     swap, )
 
 
 class Bonsai:
@@ -72,7 +71,7 @@ class Bonsai:
         n_hist_max=256,
         subsample=1.0,
         random_state=None,
-        z_type="M2",
+        z_type="M2"
     ):
         self.find_split = find_split  # user-defined
         self.is_leaf = is_leaf  # user-defined
@@ -84,10 +83,10 @@ class Bonsai:
         self.subsample = np.clip(subsample, 0.0, 1.0)
         self.random_state = random_state
         self.z_type = z_type
-
         self.leaves = []
         self.feature_importances_ = None
         self.n_features_ = 0
+        self.n_outputs_ = 1 # This is default.
         self.tree_ind = np.zeros((1, 6), dtype=np.int)
         self.tree_val = np.zeros((1, 2), dtype=np.float)
         self.tree_ind_header = (
@@ -106,6 +105,12 @@ class Bonsai:
 
         self.counts = None
         self.ratios = None
+
+        if not hasattr(self, 'classification'):
+            self.classification = False
+        if not hasattr(self, 'regression'):
+            self.regression = False
+
         return
 
     def fit(self, X, y, init_canvas=True):
@@ -164,6 +169,11 @@ class Bonsai:
             leaf["index"] = i
         self.update_feature_importances()
         self.tree_ind, self.tree_val = reconstruct_tree(self.leaves)
+
+        if self.classification:
+            self.get_discrete_probabilities(X, y)
+        if self.regression:
+            self.get_kdes(X, y)
         return
 
     def predict(self, X, output_type="response"):
@@ -185,7 +195,26 @@ class Bonsai:
         out = apply_tree(self.tree_ind, self.tree_val, X, y, output_type)
         return out
 
-    def predict_proba(self, X, y):
+    def predict_proba(self, X):
+        n, m = X.shape
+        out = np.zeros((n, self.n_classes_), dtype=np.float)
+
+        leaf_idxs = self.predict(X, output_type="index")
+        u_leaf_idxs = np.unique(leaf_idxs).astype(int)
+
+        msg = """
+        Unique leaf indices:    {}
+        """.format(u_leaf_idxs)
+        print(msg)
+
+        for leaf_idx in u_leaf_idxs:
+            leaf_mask = leaf_idxs == leaf_idx
+            print(leaf_mask)
+            out[leaf_mask, :] = self.discrete_probabilities[leaf_idx]
+
+        return out
+
+    def score_samples(self, X, y):
 
         n, m = X.shape
         out = np.zeros(n, dtype=np.float)
@@ -197,7 +226,6 @@ class Bonsai:
         for leaf_idx in u_leaf_idxs:
             leaf_mask = leaf_idxs == leaf_idx
             leaf_data = np.atleast_2d(y[leaf_mask]).T
-            print(y[leaf_mask].shape)
             out[leaf_mask] = self.kdes[leaf_idx].score_samples(leaf_data)
 
         return np.exp(out)
@@ -438,6 +466,49 @@ class Bonsai:
             self.ratios = ratios
         return ratios
 
+    def get_discrete_probabilities(self, X, y):
+        contents_leaf = self.build_contents_leaf(X, y)
+
+        l = len(self.leaves)
+        discrete_probabilities = [None for _ in range(l)]
+
+        classes_ = np.array([])
+        n_classes_ = classes_.shape[0]
+
+        # Explicit count
+        for leaf_idx in range(l):
+            leaf_mask = contents_leaf[:, -1] == leaf_idx
+            leaf_data = contents_leaf[leaf_mask, :-1]
+
+            unique, counts = np.unique(leaf_data, return_counts=True)
+
+            classes_ = np.unique(np.concatenate((classes_, unique)))
+            discrete_probabilities[leaf_idx] = list(zip(unique, counts))
+
+
+        # Counts for each possible class
+        n_classes_ = classes_.shape[0]
+        class_index_dict = {v: i for i, v in enumerate(classes_)}
+
+        for leaf_idx in range(l):
+            proba = discrete_probabilities[leaf_idx]
+            new_proba = np.zeros(n_classes_)
+
+            for t in proba:
+                class_idx = class_index_dict[t[0]]
+                new_proba[class_idx] = t[1]
+
+            discrete_probabilities[leaf_idx] = new_proba
+
+        # Normalize
+        discrete_probabilities = [x / np.sum(x) for x in discrete_probabilities]
+
+
+        self.discrete_probabilities = discrete_probabilities
+        self.classes_ = classes_
+        self.n_classes_ = self.classes_.shape[0]
+        return
+
     def get_histograms(self, X, y, **kwargs):
 
         contents_leaf = self.build_contents_leaf(X, y)
@@ -454,7 +525,6 @@ class Bonsai:
 
         return
 
-
     def get_kdes(self, X, y, **kwargs):
 
         contents_leaf = self.build_contents_leaf(X, y)
@@ -462,7 +532,7 @@ class Bonsai:
         def scotts_factor(a):
             n, m = a.shape
 
-            h = n**(-1./(m+4))
+            h = n ** (-1.0 / (m + 4))
             return h
 
         l = len(self.leaves)
@@ -489,7 +559,9 @@ class Bonsai:
         else:
             msg = """
             Did not recognize randomization scheme: {}
-            """.format(kind)
+            """.format(
+                kind
+            )
             ValueError(msg)
 
     def tunnel_randomization(self):
@@ -500,19 +572,20 @@ class Bonsai:
         n, _ = tree.tree_ind.shape
 
         # Filter leaves
-        internal_nodes = [node_idx for node_idx in range(n)
-                          if tree.tree_ind[node_idx][0] != 1]
+        internal_nodes = [
+            node_idx for node_idx in range(n) if tree.tree_ind[node_idx][0] != 1
+        ]
 
         l_ratios = tree.ratios[:, 0]
         r_ratios = tree.ratios[:, 1]
-        relative_counts = tree.counts[:, 0]/tree.counts[0, 0]
+        relative_counts = tree.counts[:, 0] / tree.counts[0, 0]
 
         l_random_samples = self.tunnel_distribution_samples(n)
         r_random_samples = self.tunnel_distribution_samples(n)
 
         for node_idx in internal_nodes:
-            l2r_tunnel = r_ratios[node_idx] * (1 - 0.5*relative_counts[node_idx])
-            r2l_tunnel = l_ratios[node_idx] * (1 - 0.5*relative_counts[node_idx])
+            l2r_tunnel = r_ratios[node_idx] * (1 - 0.5 * relative_counts[node_idx])
+            r2l_tunnel = l_ratios[node_idx] * (1 - 0.5 * relative_counts[node_idx])
 
             l2r_tunnel = l_random_samples[node_idx] < l2r_tunnel
             r2l_tunnel = r_random_samples[node_idx] < r2l_tunnel
@@ -538,8 +611,9 @@ class Bonsai:
         random_samples = self.swap_distribution_samples(n)
 
         # Filter leaves
-        internal_nodes = [node_idx for node_idx in range(n)
-                          if tree.tree_ind[node_idx][0] != 1]
+        internal_nodes = [
+            node_idx for node_idx in range(n) if tree.tree_ind[node_idx][0] != 1
+        ]
 
         l_ratios = tree.ratios[:, 0]
 
@@ -584,16 +658,61 @@ class Bonsai:
         n, m = y.shape
 
         contents_leaf = np.zeros((n, m + 1))
-        contents_leaf[:, :m] = y[:, :]  # First m columns are ground truth contents
-        contents_leaf[:, -1] = self.predict(X, output_type="index")  # Last column is leaf index
+        contents_leaf[:, :m] = y[:, :]                                  # First m columns are ground truth contents
+        contents_leaf[:, -1] = self.predict(X, output_type="index")     # Last column is leaf index
         return contents_leaf
 
     @staticmethod
-    def swap_distribution_samples(n, mu=0., sigma=0.2):
+    def swap_distribution_samples(n, mu=0.0, sigma=0.2):
         random_samples = np.random.normal(mu, sigma, n)
-        #random_samples = np.round(random_samples, decimals=2)
+        # random_samples = np.round(random_samples, decimals=2)
         return random_samples
 
     @staticmethod
     def tunnel_distribution_samples(n):
         return np.random.rand(n)
+
+    # MERCS-compatibility
+    def get_params(self, deep=True):
+        out = dict()
+        for key in self._get_param_names():
+            value = getattr(self, key, None)
+            if deep and hasattr(value, 'get_params'):
+                deep_items = value.get_params().items()
+                out.update((key + '__' + k, val) for k, val in deep_items)
+            out[key] = value
+
+        return out
+
+    @classmethod
+    def _get_param_names(cls):
+        """
+        Get parameter names for the estimator
+
+        Returns
+        -------
+
+        """
+
+        init = cls.__init__
+        if init is object.__init__:
+            # No explicit constructor to introspect
+            return []
+
+        # introspect the constructor arguments to find the model parameters
+        # to represent
+        init_signature = signature(init)
+        # Consider the constructor parameters excluding 'self'
+        parameters = [p for p in init_signature.parameters.values()
+                      if p.name != 'self' and p.kind != p.VAR_KEYWORD]
+
+        for p in parameters:
+            if p.kind == p.VAR_POSITIONAL:
+                msg = """
+                Parameter p.name    {}
+                Is of the p.VAR_POSITIONAL kind, we cannot extract this.
+                """.format(p.name)
+                raise RuntimeError(msg)
+
+        # Extract and sort argument names excluding 'self'
+        return sorted([p.name for p in parameters])

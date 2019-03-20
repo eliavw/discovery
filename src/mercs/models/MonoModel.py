@@ -1,5 +1,3 @@
-
-
 # Classes
 class MonoModel(object):
     """

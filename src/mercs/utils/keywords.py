@@ -7,29 +7,34 @@ user experience.
 
 
 def kw_ind_trees():
-    keywords = {'dt',
-                'DT',
-                'tree',
-                'Tree',
-                'dtree',
-                'Dtree',
-                'DTree',
-                'decisiontree',
-                'Decisiontree',
-                'DecisionTree'}
+    keywords = {
+        "dt",
+        "DT",
+        "tree",
+        "Tree",
+        "dtree",
+        "Dtree",
+        "DTree",
+        "decisiontree",
+        "Decisiontree",
+        "DecisionTree",
+    }
     return keywords
 
 
 def kw_ind_forests():
-    keywords = {'rf',
-                'RF',
-                'Rforest',
-                'RForest',
-                'forest',
-                'Forest',
-                'randomforest',
-                'RandomForest'}
+    keywords = {
+        "rf",
+        "RF",
+        "Rforest",
+        "RForest",
+        "forest",
+        "Forest",
+        "randomforest",
+        "RandomForest",
+    }
     return keywords
+
 
 def kw_ind_bonsai_regtree():
     return
@@ -37,23 +42,14 @@ def kw_ind_bonsai_regtree():
 
 def kw_sel_type():
 
-    keywords = {'base':     {'base',
-                             'Base'},
-                'random':   {'rnd',
-                             'random',
-                             'Random'}}
+    keywords = {"base": {"base", "Base"}, "random": {"rnd", "random", "Random"}}
 
     return keywords
 
 
 def kw_qry_codes():
-    keywords = {'query_code':   {'q_code',
-                                 'qry_code',
-                                 'queries',
-                                 'query_code'},
-
-                'query_codes':  {'q_codes',
-                                 'qry_codes',
-                                 'queries',
-                                 'query_codes'}}
+    keywords = {
+        "query_code": {"q_code", "qry_code", "queries", "query_code"},
+        "query_codes": {"q_codes", "qry_codes", "queries", "query_codes"},
+    }
     return keywords

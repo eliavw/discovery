@@ -18,7 +18,7 @@ def debug_print(msg, level=1, V=0, warn=False, **kwargs):
 
     if V >= level:
         if warn:
-            warnings.warn(msg+"\n")
+            warnings.warn(msg + "\n")
         else:
-            print(msg+"\n")
+            print(msg + "\n")
     return

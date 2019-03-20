@@ -15,11 +15,11 @@ def plot_corr(corr):
     """
     fig = plt.figure(figsize=((10, 10)))  # slightly larger
     ax = fig.add_subplot(111)
-    cax = ax.matshow(corr, cmap='seismic')
+    cax = ax.matshow(corr, cmap="seismic")
     fig.colorbar(cax)
 
     for (i, j), z in np.ndenumerate(corr):
-        ax.text(j, i, '{:0.4f}'.format(z), ha='center', va='center', color='w')
+        ax.text(j, i, "{:0.4f}".format(z), ha="center", va="center", color="w")
     return
 
 
@@ -50,9 +50,7 @@ def plot_summary_grid(df, samples=1000, random_state=997, replace=False):
 
     """
 
-    df_subsample = df.sample(n=samples,
-                             replace=replace,
-                             random_state=random_state)
+    df_subsample = df.sample(n=samples, replace=replace, random_state=random_state)
 
     sns.set(style="ticks", color_codes=True)
     g = sns.PairGrid(df_subsample)  # slice every 10 otherwise a bit slow

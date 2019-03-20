@@ -21,6 +21,7 @@ import warnings
 from ..utils.encoding import codes_to_query, encode_attribute
 
 from ..utils.debug import debug_print
+
 VERBOSITY = 0
 
 
@@ -38,11 +39,9 @@ def mi_pred_algo(m_codes, q_codes):
     mas, aas = _init_mas_aas(nb_mods, nb_atts, nb_qrys)
 
     for q_idx in range(nb_qrys):
-        mas[q_idx], aas[q_idx] = _mi_pred_qry(mas[q_idx],
-                                              aas[q_idx],
-                                              q_desc[q_idx],
-                                              q_targ[q_idx],
-                                              m_codes)
+        mas[q_idx], aas[q_idx] = _mi_pred_qry(
+            mas[q_idx], aas[q_idx], q_desc[q_idx], q_targ[q_idx], m_codes
+        )
 
     return mas, aas
 
@@ -78,8 +77,8 @@ def ma_pred_algo(m_codes, q_codes, settings):
     assert len(m_codes.shape) == len(q_codes.shape) == 2
     assert m_codes.shape[1] == q_codes.shape[1]
 
-    initial_threshold = settings['param']
-    step_size = settings['its']
+    initial_threshold = settings["param"]
+    step_size = settings["its"]
     assert isinstance(initial_threshold, (int, float))
     assert isinstance(step_size, float)
     assert 0.0 < initial_threshold <= 1.0
@@ -94,12 +93,9 @@ def ma_pred_algo(m_codes, q_codes, settings):
     mas, aas = _init_mas_aas(nb_mods, nb_atts, nb_qrys)
 
     for q_idx in range(nb_qrys):
-        mas[q_idx], aas[q_idx] = _ma_pred_qry(mas[q_idx],
-                                              aas[q_idx],
-                                              q_desc[q_idx],
-                                              q_targ[q_idx],
-                                              m_codes,
-                                              thresholds)
+        mas[q_idx], aas[q_idx] = _ma_pred_qry(
+            mas[q_idx], aas[q_idx], q_desc[q_idx], q_targ[q_idx], m_codes, thresholds
+        )
         pass
 
     return mas, aas
@@ -129,11 +125,9 @@ def _ma_pred_qry(mas, aas, q_desc, q_targ, m_codes, thresholds):
 
         for att in act_atts:
             single_act_att = np.array([att])
-            act_mods = _active_mods_ma(avl_atts,
-                                       single_act_att,
-                                       avl_mods,
-                                       avl_m_codes,
-                                       thresholds)
+            act_mods = _active_mods_ma(
+                avl_atts, single_act_att, avl_mods, avl_m_codes, thresholds
+            )
             mas[act_mods] = n
 
     return mas, aas
@@ -146,15 +140,15 @@ def mafi_pred_algo(m_codes, q_codes, settings):
     assert len(m_codes.shape) == len(q_codes.shape) == 2
     assert m_codes.shape[1] == q_codes.shape[1]
 
-    initial_threshold = settings['param']
-    step_size = settings['its']
+    initial_threshold = settings["param"]
+    step_size = settings["its"]
     assert isinstance(initial_threshold, (int, float))
     assert isinstance(step_size, float)
     assert 0.0 < initial_threshold <= 1.0
     assert 0.0 < step_size < 1.0
 
     # TODO: This must not come packed in 'settings'
-    feature_importances = settings['FI']
+    feature_importances = settings["FI"]
 
     # Preliminaries
     nb_mods, nb_atts, nb_qrys = _extract_global_numbers(m_codes, q_codes)
@@ -165,24 +159,20 @@ def mafi_pred_algo(m_codes, q_codes, settings):
     mas, aas = _init_mas_aas(nb_mods, nb_atts, nb_qrys)
 
     for q_idx in range(nb_qrys):
-        mas[q_idx], aas[q_idx] = _mafi_pred_qry(mas[q_idx],
-                                                aas[q_idx],
-                                                q_desc[q_idx],
-                                                q_targ[q_idx],
-                                                m_codes,
-                                                thresholds,
-                                                feature_importances)
+        mas[q_idx], aas[q_idx] = _mafi_pred_qry(
+            mas[q_idx],
+            aas[q_idx],
+            q_desc[q_idx],
+            q_targ[q_idx],
+            m_codes,
+            thresholds,
+            feature_importances,
+        )
 
     return mas, aas
 
 
-def _mafi_pred_qry(mas,
-                   aas,
-                   q_desc,
-                   q_targ,
-                   m_codes,
-                   thresholds,
-                   feature_importances):
+def _mafi_pred_qry(mas, aas, q_desc, q_targ, m_codes, thresholds, feature_importances):
 
     steps = [1]
 
@@ -207,12 +197,9 @@ def _mafi_pred_qry(mas,
 
         for att in act_atts:
             single_act_att = np.array([att])
-            act_mods = _active_mods_mafi(avl_atts,
-                                         single_act_att,
-                                         avl_mods,
-                                         avl_m_codes,
-                                         thresholds,
-                                         avl_f_imprt)
+            act_mods = _active_mods_mafi(
+                avl_atts, single_act_att, avl_mods, avl_m_codes, thresholds, avl_f_imprt
+            )
             mas[act_mods] = n
 
     return mas, aas
@@ -226,14 +213,16 @@ def it_pred_algo(m_codes, q_codes, settings):
     assert m_codes.shape[1] == q_codes.shape[1]
 
     initial_threshold = 1.0
-    step_size = settings['param']
-    max_layers = settings['its']
+    step_size = settings["param"]
+    max_layers = settings["its"]
     assert isinstance(max_layers, int)
     assert isinstance(step_size, float)
     assert 1 <= max_layers
     assert 0.0 < step_size < 1.0
 
-    feature_importances = settings['FI'] # TODO: This must not come packed in 'settings'
+    feature_importances = settings[
+        "FI"
+    ]  # TODO: This must not come packed in 'settings'
 
     # Preliminaries
     nb_mods, nb_atts, nb_qrys = _extract_global_numbers(m_codes, q_codes)
@@ -245,26 +234,23 @@ def it_pred_algo(m_codes, q_codes, settings):
     mas, aas = _init_mas_aas(nb_mods, nb_atts, nb_qrys)
 
     for q_idx in range(nb_qrys):
-        mas[q_idx], aas[q_idx] = _it_pred_qry(mas[q_idx],
-                                              aas[q_idx],
-                                              q_desc[q_idx],
-                                              q_targ[q_idx],
-                                              m_codes,
-                                              thresholds,
-                                              feature_importances,
-                                              steps)
+        mas[q_idx], aas[q_idx] = _it_pred_qry(
+            mas[q_idx],
+            aas[q_idx],
+            q_desc[q_idx],
+            q_targ[q_idx],
+            m_codes,
+            thresholds,
+            feature_importances,
+            steps,
+        )
 
     return mas, aas
 
 
-def _it_pred_qry(mas,
-                 aas,
-                 q_desc,
-                 q_targ,
-                 m_codes,
-                 thresholds,
-                 feature_importances,
-                 steps):
+def _it_pred_qry(
+    mas, aas, q_desc, q_targ, m_codes, thresholds, feature_importances, steps
+):
 
     # Zero-step
     aas[q_desc] = 0
@@ -284,18 +270,22 @@ def _it_pred_qry(mas,
         avl_atts: {}\n
         avl_mods: {}\n
         avl_m_codes: {}\n
-        """.format(n, avl_atts, avl_mods, avl_m_codes)
+        """.format(
+            n, avl_atts, avl_mods, avl_m_codes
+        )
         debug_print(msg, V=VERBOSITY)
 
         # Activate models
         pot_act_atts = _unavailable_atts(aas)
-        act_mods = _active_mods_mafi(avl_atts,
-                                     pot_act_atts,
-                                     avl_mods,
-                                     avl_m_codes,
-                                     thresholds,
-                                     avl_f_imprt,
-                                     mode='some')
+        act_mods = _active_mods_mafi(
+            avl_atts,
+            pot_act_atts,
+            avl_mods,
+            avl_m_codes,
+            thresholds,
+            avl_f_imprt,
+            mode="some",
+        )
         mas[act_mods] = n
 
         msg = """
@@ -303,7 +293,9 @@ def _it_pred_qry(mas,
         unavl_atts: {}\n
         act_mods: {}\n
         mas: {}\n
-        """.format(pot_act_atts, act_mods, mas)
+        """.format(
+            pot_act_atts, act_mods, mas
+        )
         debug_print(msg, V=VERBOSITY)
 
         # Activate attributes
@@ -315,7 +307,9 @@ def _it_pred_qry(mas,
         AFTER ATTRIBUTE ACTIVATION: \n
         act_atts: {}\n
         aas: {}\n
-        """.format(act_atts, aas)
+        """.format(
+            act_atts, aas
+        )
         debug_print(msg, V=VERBOSITY)
 
         # Assert whether we are done
@@ -344,19 +338,23 @@ def _it_pred_qry(mas,
 
         # Activate models
         pot_act_atts = _unavailable_atts(aas)
-        act_mods = _active_mods_mafi(avl_atts,
-                                     pot_act_atts,
-                                     avl_mods,
-                                     avl_m_codes,
-                                     thresholds,
-                                     avl_f_imprt,
-                                     mode='some')
+        act_mods = _active_mods_mafi(
+            avl_atts,
+            pot_act_atts,
+            avl_mods,
+            avl_m_codes,
+            thresholds,
+            avl_f_imprt,
+            mode="some",
+        )
         mas[act_mods] = n
 
         msg = """
         Active models: {}\n
         MAS at this point: {}\n
-        """.format(act_mods, mas)
+        """.format(
+            act_mods, mas
+        )
         debug_print(msg, V=VERBOSITY)
 
         # Activate attributes
@@ -367,7 +365,9 @@ def _it_pred_qry(mas,
         msg = """
         Active atts: {}\n
         AAS at this point: {}\n
-        """.format(act_atts, aas)
+        """.format(
+            act_atts, aas
+        )
         debug_print(msg, V=VERBOSITY)
 
         # Assert whether we are done
@@ -383,40 +383,40 @@ def rw_pred_algo(m_codes, q_codes, settings):
     assert len(m_codes.shape) == len(q_codes.shape) == 2
     assert m_codes.shape[1] == q_codes.shape[1]
 
-    max_layers = settings['its']
+    max_layers = settings["its"]
     assert isinstance(max_layers, int) and 1 <= max_layers
-    chain_size = np.random.randint(1, max_layers + 1)   # Chain size at least one
+    chain_size = np.random.randint(1, max_layers + 1)  # Chain size at least one
 
-    feature_importances = settings['FI'] # TODO: This must not come packed in 'settings'
+    feature_importances = settings[
+        "FI"
+    ]  # TODO: This must not come packed in 'settings'
 
     # Preliminaries
     nb_mods, nb_atts, nb_qrys = _extract_global_numbers(m_codes, q_codes)
     q_desc, q_targ, _ = codes_to_query(q_codes)
 
-    steps = list(range(1, 1 + max_layers))              # Chain size at least one (it is correct that +1 happens twice!)
+    steps = list(
+        range(1, 1 + max_layers)
+    )  # Chain size at least one (it is correct that +1 happens twice!)
     steps.reverse()
 
     mas, aas = _init_mas_aas(nb_mods, nb_atts, nb_qrys)
 
     for q_idx in range(nb_qrys):
-        mas[q_idx], aas[q_idx] = _rw_pred_qry(mas[q_idx],
-                                              aas[q_idx],
-                                              q_desc[q_idx],
-                                              q_targ[q_idx],
-                                              m_codes,
-                                              feature_importances,
-                                              steps)
+        mas[q_idx], aas[q_idx] = _rw_pred_qry(
+            mas[q_idx],
+            aas[q_idx],
+            q_desc[q_idx],
+            q_targ[q_idx],
+            m_codes,
+            feature_importances,
+            steps,
+        )
 
     return mas, aas
 
 
-def _rw_pred_qry(mas,
-                 aas,
-                 q_desc,
-                 q_targ,
-                 m_codes,
-                 feature_importances,
-                 steps):
+def _rw_pred_qry(mas, aas, q_desc, q_targ, m_codes, feature_importances, steps):
     desc_encoding = encode_attribute(0, [0], [1])
 
     # Zero-step
@@ -441,13 +441,15 @@ def _rw_pred_qry(mas,
         avl_atts:       {}\n
         avl_mods:       {}\n
         avl_m_codes:    {}\n
-        """.format(i, n, avl_atts, avl_mods, avl_m_codes)
-        debug_print(msg, level=2 ,V=VERBOSITY)
+        """.format(
+            i, n, avl_atts, avl_mods, avl_m_codes
+        )
+        debug_print(msg, level=2, V=VERBOSITY)
 
         # 2. Collection of potential active targets
         if i == 0:
             pot_act_atts = _active_atts(q_targ)
-            assert pot_act_atts.shape[0] == 1         # TODO: multi-target RW
+            assert pot_act_atts.shape[0] == 1  # TODO: multi-target RW
         else:
             unavailable_atts = _unavailable_atts(aas)
             next_mods = np.where(mas == n + 1)
@@ -459,11 +461,9 @@ def _rw_pred_qry(mas,
             break  # Nothing left to contribute
 
         # 3. Model activation
-        act_mods = _active_mods_rw(avl_atts,
-                                   pot_act_atts,
-                                   avl_mods,
-                                   avl_m_codes,
-                                   avl_f_imprt)
+        act_mods = _active_mods_rw(
+            avl_atts, pot_act_atts, avl_mods, avl_m_codes, avl_f_imprt
+        )
 
         if len(act_mods) == 0:
             break  # Nothing left to contribute
@@ -476,7 +476,9 @@ def _rw_pred_qry(mas,
         pot_act_atts:   {}\n
         act_mods:       {}\n
         mas:            {}\n
-        """.format(pot_act_atts, act_mods, mas)
+        """.format(
+            pot_act_atts, act_mods, mas
+        )
         debug_print(msg, level=2, V=VERBOSITY)
 
         # 3. Activate attributes
@@ -491,7 +493,9 @@ def _rw_pred_qry(mas,
         --- - --- - --- - --- -\n
         act_atts: {}\n
         aas: {}\n
-        """.format(act_atts, aas)
+        """.format(
+            act_atts, aas
+        )
         debug_print(msg, level=2, V=VERBOSITY)
 
     assert np.max(aas) == np.max(mas)
@@ -615,7 +619,7 @@ def _active_mods_ma(avl_atts, act_atts, avl_mods, avl_m_codes, thresholds):
         overlap_avl_desc_atts = np.sum(m_code[avl_atts] == desc_encoding)
         total_count_desc_atts = np.sum(m_code[:] == desc_encoding)
 
-        avl_mods_appr_scores[m_idx] = overlap_avl_desc_atts/total_count_desc_atts
+        avl_mods_appr_scores[m_idx] = overlap_avl_desc_atts / total_count_desc_atts
 
     # Activate models with sufficiently high appropriateness scores
     for threshold in thresholds:
@@ -629,13 +633,9 @@ def _active_mods_ma(avl_atts, act_atts, avl_mods, avl_m_codes, thresholds):
     return act_mods
 
 
-def _active_mods_mafi(avl_atts,
-                      act_atts,
-                      avl_mods,
-                      avl_m_codes,
-                      thresholds,
-                      avl_f_imprt,
-                      mode='all'):
+def _active_mods_mafi(
+    avl_atts, act_atts, avl_mods, avl_m_codes, thresholds, avl_f_imprt, mode="all"
+):
     assert avl_m_codes.shape[0] == avl_f_imprt.shape[0] == avl_mods.shape[0]
 
     # Calculate appropriateness scores for all available models
@@ -644,15 +644,17 @@ def _active_mods_mafi(avl_atts,
         avl_mods_appr_scores[m_idx] = np.sum(avl_f_imprt[np.ix_([m_idx], avl_atts)])
 
     # Activate models with sufficiently high appropriateness scores
-    if mode in {'all'}:
+    if mode in {"all"}:
         stopping_criterion = _assert_all_act_atts_as_targ
-    elif mode in {'some'}:
+    elif mode in {"some"}:
         stopping_criterion = _assert_some_act_atts_as_targ
     else:
         msg = """
         Did not recognize the mode: {}
         Choose either 'all' or 'some'.
-        """.format(mode)
+        """.format(
+            mode
+        )
         raise ValueError(msg)
 
     for threshold in thresholds:
@@ -667,11 +669,7 @@ def _active_mods_mafi(avl_atts,
     return act_mods
 
 
-def _active_mods_rw(avl_atts,
-                    act_atts,
-                    avl_mods,
-                    avl_m_codes,
-                    avl_f_imprt):
+def _active_mods_rw(avl_atts, act_atts, avl_mods, avl_m_codes, avl_f_imprt):
     assert avl_m_codes.shape[0] == avl_f_imprt.shape[0] == avl_mods.shape[0]
 
     act_mods_idx = _filter_mods_act_atts_as_targ(avl_mods, avl_m_codes, act_atts)
@@ -690,7 +688,7 @@ def _active_mods_rw(avl_atts,
 
     act_mods = avl_mods[act_mods_idx]
 
-    assert act_mods.shape[0] > 0 # Important assertion
+    assert act_mods.shape[0] > 0  # Important assertion
     return act_mods
 
 
@@ -791,23 +789,40 @@ def full_prune_strat(m_codes, q_code, mas, aas):
         step = max_step - i
 
         if step == max_step:
-            aas = np.array([e if ((e != step) | (q_code[i] == 1))
-                            else 0 for i, e in enumerate(aas)])
+            aas = np.array(
+                [
+                    e if ((e != step) | (q_code[i] == 1)) else 0
+                    for i, e in enumerate(aas)
+                ]
+            )
         else:
-            next_act_mods = (mas > step)
+            next_act_mods = mas > step
 
             msg = """
             Next act mods:\t{}\n
-            """.format(next_act_mods)
+            """.format(
+                next_act_mods
+            )
             debug_print(msg, V=VERBOSITY)
 
             aas = np.array(
-                [e if ((e != step) | (np.sum(m_codes[next_act_mods, i] == 0) > 0) | (q_code[i] == 1))
-                 else 0 for i, e in enumerate(aas)])
+                [
+                    e
+                    if (
+                        (e != step)
+                        | (np.sum(m_codes[next_act_mods, i] == 0) > 0)
+                        | (q_code[i] == 1)
+                    )
+                    else 0
+                    for i, e in enumerate(aas)
+                ]
+            )
 
-        act_atts = (aas >= step)
-        mas = [e if ((e != step) | (np.sum(m_codes[i][act_atts] == 1) > 0))
-               else 0 for i, e in enumerate(mas)]
+        act_atts = aas >= step
+        mas = [
+            e if ((e != step) | (np.sum(m_codes[i][act_atts] == 1) > 0)) else 0
+            for i, e in enumerate(mas)
+        ]
 
     # Recode strategies
     mas, aas = recode_strat(mas, aas)
@@ -829,7 +844,9 @@ def recode_strat(mas, aas):
     uniq_mas = np.array([e for e in uniq_mas if e > 0])
     uniq_aas = np.array([e for e in uniq_aas if e > 0])
     mas = np.array([np.where(uniq_mas == e)[0][0] + 1 if e > 0 else e for e in mas])
-    aas = np.array([np.where(uniq_aas == e)[0][0] + 1 if e > 0 else e for e in aas])  # -1 for unknown targets
+    aas = np.array(
+        [np.where(uniq_aas == e)[0][0] + 1 if e > 0 else e for e in aas]
+    )  # -1 for unknown targets
 
     return mas, aas
 

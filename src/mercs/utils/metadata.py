@@ -40,24 +40,29 @@ def get_metadata_df(df):
     has_nan = df.isnull().any().values
     types = df.dtypes.values
 
-    is_nominal = [check_nominal_att(t, v, n)
-                  for t, v, n in zip(types, nb_uvalues, has_nan)]
+    is_nominal = [
+        check_nominal_att(t, v, n) for t, v, n in zip(types, nb_uvalues, has_nan)
+    ]
     is_nominal = np.array(is_nominal).astype(int)
 
-    metadata = {'types':        types,
-                'has_nan':      has_nan,
-                'is_nominal':   is_nominal,
-                'nb_atts':      nb_atts,
-                'nb_tuples':    nb_tuples,
-                'nb_values':    nb_uvalues}
+    metadata = {
+        "types": types,
+        "has_nan": has_nan,
+        "is_nominal": is_nominal,
+        "nb_atts": nb_atts,
+        "nb_tuples": nb_tuples,
+        "nb_values": nb_uvalues,
+    }
 
     return metadata
 
 
-def check_nominal_att(attribute_type,
-                      attribute_unique_values,
-                      check_nan,
-                      nominal_attribute_unique_values_threshold=20):
+def check_nominal_att(
+    attribute_type,
+    attribute_unique_values,
+    check_nan,
+    nominal_attribute_unique_values_threshold=20,
+):
     """
     Check if an attribute is nominal, according to our definition.
 
@@ -117,7 +122,9 @@ def collect_feature_importances(m_list, m_codes):
 
     for mod_i in range(len(m_list)):
         for desc_i, attr_i in enumerate(m_desc[mod_i]):
-            feature_importances[mod_i, attr_i] = m_list[mod_i].feature_importances_[desc_i]
+            feature_importances[mod_i, attr_i] = m_list[mod_i].feature_importances_[
+                desc_i
+            ]
 
     return feature_importances
 
@@ -137,10 +144,12 @@ def extract_nominal_numeric_attributes(metadata):
 
     """
 
-    nominal_attributes = [x for x in range(metadata['nb_atts'])
-                          if metadata['is_nominal'][x] == 1]
-    numeric_attributes = [x for x in range(metadata['nb_atts'])
-                          if metadata['is_nominal'][x] == 0]
+    nominal_attributes = [
+        x for x in range(metadata["nb_atts"]) if metadata["is_nominal"][x] == 1
+    ]
+    numeric_attributes = [
+        x for x in range(metadata["nb_atts"]) if metadata["is_nominal"][x] == 0
+    ]
 
     return nominal_attributes, numeric_attributes
 

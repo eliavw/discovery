@@ -23,6 +23,7 @@ import pandas as pd
 from ..utils.encoding import encode_attribute
 
 from ..utils.debug import debug_print
+
 VERBOSITY = 0
 
 
@@ -140,7 +141,9 @@ def merge_numer(numer_res, numer_mod, t_idx_res, t_idx_mod):
     Type of numer_res: {} \n
     Type of numer_res[0]: {}\n
     Shape of numer_res[0]: {}\n
-    """.format(*con_1)
+    """.format(
+        *con_1
+    )
     debug_print(msg_1, level=1, V=VERBOSITY)
 
     if isinstance(numer_mod, list):

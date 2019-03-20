@@ -15,7 +15,7 @@ PRECISION = 1e-12
 
 class AlphaTree(Bonsai):
     def __init__(
-        self, alpha=1.0, max_depth=5, min_samples_split=2, min_samples_leaf=1, **kwarg
+        self, alpha=1.0, max_depth=5, min_samples_split=2, min_samples_leaf=1, **kwargs
     ):
 
         self.alpha = alpha
@@ -82,4 +82,4 @@ class AlphaTree(Bonsai):
             else:
                 return False
 
-        Bonsai.__init__(self, find_split, is_leaf, z_type="M2")
+        Bonsai.__init__(self, find_split, is_leaf, z_type="M2", **kwargs)
