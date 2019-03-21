@@ -91,22 +91,24 @@ class PalmboomClassifier(DecisionTreeClassifier, Palmboom):
 
 class PalmboomRegressor(DecisionTreeRegressor, Palmboom):
 
-    def __init__(self, **kwargs):
+    def __init__(self, marginal_kdes=False, joint_kdes=False, **kwargs):
 
         DecisionTreeRegressor.__init__(self, **kwargs)
 
-        self.marginal_kdes_ = dict()
+        self.marginal_kdes_ = marginal_kdes
+        self.joint_kdes_ = joint_kdes
 
         return
 
-    def fit(self, X, y, marginal_kdes=False, joint_kdes=False, **kwargs):
+    def fit(self, X, y, **kwargs):
+
         DecisionTreeRegressor.fit(self, X, y, **kwargs)
 
-        if marginal_kdes:
-            self.fit_marginal_kdes(X, y, **kwargs)
+        if self.marginal_kdes_:
+            self.fit_marginal_kdes(X, y)
 
-        if joint_kdes:
-            self.fit_joint_kdes(X, y, **kwargs)
+        if self.joint_kdes_:
+            self.fit_joint_kdes(X, y)
 
         return
 
@@ -140,7 +142,6 @@ class PalmboomRegressor(DecisionTreeRegressor, Palmboom):
             # Dynamical bandwidth selection (= per leaf bandwidth)
             bandwidth = scotts_factor(leaf_data)
 
-            print("Training Data Dimension: {}".format(leaf_data.shape))
             joint_kdes[(leaf_idx, 'joint')] = KernelDensity(bandwidth=bandwidth, **kwargs).fit(leaf_data)
 
         self.joint_kdes_ = joint_kdes
@@ -180,18 +181,18 @@ class PalmboomRegressor(DecisionTreeRegressor, Palmboom):
         self.marginal_kdes_ = marginal_kdes
         return
 
-    def score_samples(self, X_test, y_test, kind='joint'):
-        if kind in {'joint'}:
+    def score_samples(self, X_test, y_test, kde_kind='joint'):
+        if kde_kind in {'joint'}:
             assert len(self.joint_kdes_) > 0, "self.joint_kdes is empty"
             return self.joint_score_samples(X_test, y_test)
-        elif kind in {'marginal'}:
+        elif kde_kind in {'marginal'}:
             assert len(self.marginal_kdes_) > 0, "self.marginal_kdes is empty"
             return self.marginal_score_samples(X_test, y_test)
         else:
             msg = """
             Did not recognize kind:     {}
             Marginal or joint scores can be computed.
-            """.format(kind)
+            """.format(kde_kind)
             raise ValueError(msg)
 
     def joint_score_samples(self, X_test, y_test):
@@ -208,7 +209,6 @@ class PalmboomRegressor(DecisionTreeRegressor, Palmboom):
             if m == 1:
                 leaf_data = np.atleast_2d(leaf_data)
 
-            print("Test Data Dimension: {}".format(leaf_data.shape))
             out[leaf_mask] = self.joint_kdes_[(leaf_idx, 'joint')].score_samples(leaf_data)
 
         out = np.exp(out)

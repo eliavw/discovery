@@ -1,7 +1,8 @@
 import numpy as np
 import warnings
 
-from ..utils.encoding import codes_to_query, encode_attribute
+from ..utils.encoding import (codes_to_query,
+                              encode_attribute)
 from ..utils.classlabels import collect_and_verify_clf_classlabels
 from ..utils.metadata import collect_feature_importances
 

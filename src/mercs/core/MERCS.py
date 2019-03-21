@@ -1,6 +1,7 @@
 import json
 
 from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler, Normalizer, RobustScaler
 from timeit import default_timer
 
 from ..algo.induction import base_ind_algo
@@ -16,6 +17,7 @@ from ..algo.selection import *
 from ..io.io import save_output_data
 from ..models.PolyModel import *
 from ..settings import *
+from ..utils.encoding import codes_to_query, code_to_query
 from ..utils.keywords import *
 from ..utils.metadata import (
     get_metadata_df,
@@ -61,6 +63,7 @@ class MERCS(object):
         self.m_list = None
         self.q_models = None
         self.imputer = None
+        self.scores_scaler_ = None
 
         return
 
@@ -99,6 +102,8 @@ class MERCS(object):
         -------
 
         """
+        if isinstance(X,np.ndarray):
+            X = pd.DataFrame(X)
 
         # 1. Prelims
         tick = default_timer()
@@ -126,6 +131,22 @@ class MERCS(object):
         self.update_settings(mode="metadata")  # Save info on learned models
         self.update_settings(mode="model_data", mod_ind_time=tock - tick)
 
+        return
+
+    def fit_scores_scaler(self, X, kind=None, **kwargs):
+
+        if kind in {None, 'StandardScaler'}:
+            scaler = StandardScaler()
+        elif kind in {'Normalizer'}:
+            scaler = Normalizer()
+        elif kind in {'Robust'}:
+            scaler = RobustScaler()
+        else:
+            raise ValueError("Didnt know what up.")
+        scores = self.score_samples_(X, **kwargs)
+        scaler.fit(scores)
+
+        self.scores_scaler_ =  scaler
         return
 
     def predict(self, X, q_idx=0, **kwargs):
@@ -255,6 +276,94 @@ class MERCS(object):
         self.update_settings(mode="model_data", mod_inf_time=tock - tick)
 
         return
+
+    def score_samples(self, X, aggregation=None, k=None, **kwargs):
+
+        scores = self.score_samples_(X, **kwargs)
+
+        if self.scores_scaler_ is not None:
+            scores = self.scores_scaler_.transform(scores)
+
+        out = self.aggregate_scores(scores, aggregation=aggregation, k=k)
+        return out
+
+    def score_samples_(self, X, **kwargs):
+        n, _ = X.shape
+        nb_models = len(self.m_list)
+
+        scores = np.zeros((n, nb_models), dtype=float)
+
+        for m_idx in range(nb_models):
+            scores[:, m_idx] = self.score_samples_model(X, m_idx, **kwargs)
+        return scores
+
+    def score_samples_model(self, X, m_idx, **kwargs):
+        m = self.m_list[m_idx]
+        m_code = self.m_codes[m_idx, :]
+        m_desc, m_targ, _ = code_to_query(m_code)
+
+        i, o = X[:, m_desc], X[:, m_targ]
+
+        scores = m.score_samples(i, o, **kwargs)
+
+        return scores
+
+    @staticmethod
+    def aggregate_scores(scores, aggregation=None, k=None):
+
+        if aggregation is None:
+            aggregation='max'
+        if k is None:
+            k=3
+
+        n, m = scores.shape
+
+        if aggregation in {'max'}:
+            res = np.max(scores, axis=1)
+
+        elif aggregation in {'mean'}:
+            res = np.mean(scores, axis=1)
+
+        elif aggregation in {'topk'}:
+            if k > m:
+                msg = """
+                Given k value:                                      {}
+                is higher than the amount of scores per instance:    {}
+                Hence, we adjust k to be equal to m, and this method
+                becomes equivalent to taking the mean again.
+                """.format(k, m)
+                warnings.warn(msg)
+                k = m
+
+            topk_idx = np.argpartition(scores, -k ,axis=1)[:, -k:]
+            res = [np.mean(scores[row_idx, topk_idx[row_idx, :]])
+                   for row_idx in range(n)]
+
+        elif aggregation in {'topksum'}:
+            if k > m:
+                msg = """
+                Given k value:                                      {}
+                is higher than the amount of scores per instance:    {}
+                Hence, we adjust k to be equal to m, and this method
+                becomes equivalent to taking the mean again.
+                """.format(k, m)
+                warnings.warn(msg)
+                k = m
+
+            topk_idx = np.argpartition(scores, -k ,axis=1)[:, -k:]
+            res = [np.sum(scores[row_idx, topk_idx[row_idx, :]])
+                   for row_idx in range(n)]
+
+        elif aggregation in {'sum'}:
+            res = np.sum(scores, axis=1)
+
+        else:
+            msg = """
+            Did not recognize kind: {}
+            """.format(aggregation)
+            raise ValueError(msg)
+
+        return res
 
     # 0. Preliminaries
     def load_settings(self, filename, mode=None):
@@ -475,7 +584,7 @@ class MERCS(object):
             assert isinstance(m_targ[m_idx], list)
 
             m_atts = m_desc[m_idx] + m_targ[m_idx]
-            X_Y = df.iloc[:, m_atts].dropna().values
+            X_Y = df.iloc[:, m_atts].dropna().values # Ignore rows with missing values while training
 
             X = X_Y[:, : len(m_desc[m_idx])]
             Y = X_Y[:, len(m_desc[m_idx]) :]
@@ -492,8 +601,6 @@ class MERCS(object):
             assert Y.shape[1] == len(m_targ[m_idx])
 
             # Convert np.array with shape (m,1) to shape (m,)
-            if 1 in list(X.shape):
-                X = X.ravel()
             if 1 in list(Y.shape):
                 Y = Y.ravel()
 

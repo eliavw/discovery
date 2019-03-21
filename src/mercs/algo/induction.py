@@ -13,6 +13,11 @@ license:
     Apache License, Version 2.0, see LICENSE for details.
 """
 
+import os
+import sys
+
+
+from os.path import dirname, abspath
 from sklearn.tree import *
 from sklearn.ensemble import *
 
@@ -22,6 +27,16 @@ from ..utils.keywords import *
 from ..utils.debug import debug_print
 
 VERBOSITY = 0
+
+# Custom imports
+algo_dir = dirname(abspath(__file__))
+mercs_dir = dirname(algo_dir)
+root_dir = dirname(mercs_dir)
+for e in {'palmbomen'}:
+    sys.path.append(os.path.join(root_dir, e))
+
+import palmbomen
+from palmbomen import PalmboomClassifier, PalmboomRegressor
 
 
 # Algorithms
@@ -130,6 +145,8 @@ def induce_clf(s):
     if model is not None:
         clf = model(**params)
     elif mod_type in kw_ind_trees():
+        clf = PalmboomClassifier(**params)
+    elif mod_type in kw_ind_trees_skl():
         clf = DecisionTreeClassifier(**params)
     elif mod_type in kw_ind_forests():
         clf = RandomForestClassifier(**params)
@@ -166,6 +183,8 @@ def induce_rgr(s):
     if model is not None:
         rgr = model(**params)
     elif mod_type in kw_ind_trees():
+        rgr = PalmboomRegressor(**params)
+    elif mod_type in kw_ind_trees_skl():
         rgr = DecisionTreeRegressor(**params)
     elif mod_type in kw_ind_forests():
         rgr = RandomForestRegressor(**params)

@@ -22,6 +22,14 @@ def kw_ind_trees():
     return keywords
 
 
+def kw_ind_trees_skl():
+    return {"skl"+kw for kw in kw_ind_trees()}
+
+
+def kw_ind_forests_skl():
+    return {"skl"+kw for kw in kw_ind_forests()}
+
+
 def kw_ind_forests():
     keywords = {
         "rf",
@@ -36,13 +44,10 @@ def kw_ind_forests():
     return keywords
 
 
-def kw_ind_bonsai_regtree():
-    return
-
-
 def kw_sel_type():
 
-    keywords = {"base": {"base", "Base"}, "random": {"rnd", "random", "Random"}}
+    keywords = {"base":     {"base", "Base"},
+                "random":   {"rnd", "random", "Random"}}
 
     return keywords
 

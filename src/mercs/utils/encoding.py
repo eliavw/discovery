@@ -61,6 +61,7 @@ def code_to_query(code, attributes=None):
     """
 
     assert isinstance(code, np.ndarray)
+    assert code.ndim == 1
 
     nb_atts = code.shape[0]
     if attributes is None:
