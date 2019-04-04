@@ -1,7 +1,10 @@
 import json
 
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler, Normalizer, RobustScaler
+from sklearn.preprocessing import (MaxAbsScaler,
+                                   MinMaxScaler,
+                                   StandardScaler,
+                                   RobustScaler)
 from timeit import default_timer
 
 from ..algo.induction import base_ind_algo
@@ -43,7 +46,7 @@ class MERCS(object):
     """
 
     # Main Methods
-    def __init__(self, settings_fname=None):
+    def __init__(self, settings_fname=None, **kwargs):
         """
         Return an initialized MERCS object.
 
@@ -64,6 +67,8 @@ class MERCS(object):
         self.q_models = None
         self.imputer = None
         self.scores_scaler_ = None
+
+        self.update_settings(mode="init", **kwargs)
 
         return
 
@@ -133,20 +138,30 @@ class MERCS(object):
 
         return
 
-    def fit_scores_scaler(self, X, kind=None, **kwargs):
+    def fit_scores_scaler(self, X, scaler_kind=None, **kwargs):
 
-        if kind in {None, 'StandardScaler'}:
+        if scaler_kind in {None, 'StandardScaler'}:
             scaler = StandardScaler()
-        elif kind in {'Normalizer'}:
-            scaler = Normalizer()
-        elif kind in {'Robust'}:
+        elif scaler_kind in {'MaxAbsScaler'}:
+            scaler = MaxAbsScaler()
+        elif scaler_kind in {'MinMaxScaler'}:
+            scaler = MinMaxScaler()
+        elif scaler_kind in {'RobustScaler', 'Robust'}:
             scaler = RobustScaler()
         else:
-            raise ValueError("Didnt know what up.")
+            msg = """
+            Unknown `scaler_kind`:      {}
+            Current options are:        'StandardScaler'
+                                        'MaxAbsScaler',
+                                        'MinMaxScaler',
+                                        'RobustScaler'}
+            """.format(scaler_kind)
+            raise ValueError(msg)
+
         scores = self.score_samples_(X, **kwargs)
         scaler.fit(scores)
 
-        self.scores_scaler_ =  scaler
+        self.scores_scaler_ = scaler
         return
 
     def predict(self, X, q_idx=0, **kwargs):
@@ -311,14 +326,12 @@ class MERCS(object):
     @staticmethod
     def aggregate_scores(scores, aggregation=None, k=None):
 
-        if aggregation is None:
-            aggregation='max'
         if k is None:
-            k=3
+            k = 3
 
         n, m = scores.shape
 
-        if aggregation in {'max'}:
+        if aggregation in {None, 'max'}:
             res = np.max(scores, axis=1)
 
         elif aggregation in {'mean'}:
@@ -335,7 +348,7 @@ class MERCS(object):
                 warnings.warn(msg)
                 k = m
 
-            topk_idx = np.argpartition(scores, -k ,axis=1)[:, -k:]
+            topk_idx = np.argpartition(scores, -k, axis=1)[:, -k:]
             res = [np.mean(scores[row_idx, topk_idx[row_idx, :]])
                    for row_idx in range(n)]
 
@@ -466,16 +479,19 @@ class MERCS(object):
         elif mode in {"predict", "batch_predict"}:
             self.update_settings(mode="prediction", delimiter=delimiter, **kwargs)
             self.update_settings(mode="qry", delimiter=delimiter, **kwargs)
-        else:
-            warnings.warn(
-                "Did not recognize mode: {}. " "Updating all settings.".format(mode)
-            )
+        elif mode in {None, 'init'}:
             self.update_settings(mode="induction", delimiter=delimiter, **kwargs)
             self.update_settings(mode="selection", delimiter=delimiter, **kwargs)
             self.update_settings(mode="prediction", delimiter=delimiter, **kwargs)
             self.update_settings(mode="queries", delimiter=delimiter, **kwargs)
-            self.update_settings(mode="metadata", delimiter=delimiter, **kwargs)
             self.update_settings(mode="model_data", delimiter=delimiter, **kwargs)
+        else:
+            msg = """
+            Did not recognize settings keyword:     {}
+            Running a initialization procedure instead.
+            """.format(mode)
+            warnings.warn(msg)
+            self.update_settings(mode="init", delimiter=delimiter, **kwargs)
 
         return
 
@@ -544,17 +560,13 @@ class MERCS(object):
                 metadata, self.s["selection"], target_atts_list=target_atts_list
             )
         elif sel_type in keywords["random"]:
-            m_codes = random_selection_algo(
-                metadata, self.s["selection"], target_atts_list=target_atts_list
-            )
+            m_codes = random_selection_algo(metadata, self.s["selection"])
         else:
             msg = """
             Did not recognize user-provided selection algorithm {}
             Available algorithms are {}
             Assuming `base` selection instead
-            """.format(
-                sel_type, keywords.keys()
-            )
+            """.format(sel_type, keywords.keys())
             warnings.warn(msg)
 
             self.s["selection"]["type"] = next(iter(keywords["base"]))

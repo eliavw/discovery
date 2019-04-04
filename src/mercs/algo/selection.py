@@ -63,21 +63,7 @@ def base_selection_algo(metadata, settings, target_atts_list=None):
 
     nb_target_atts = len(target_atts_list)
 
-    if (param > 0) & (param < 1):
-        nb_out_atts = int(np.ceil(param * nb_atts))
-    elif (param >= 1) & (param < nb_atts):
-        nb_out_atts = int(param)
-    else:
-        msg = """
-        Impossible number of output attributes per model: {}\n
-        This means the value of settings['selection']['param'] was set
-        incorrectly.\n
-        Re-adjusted to default; one model per attribute.
-        """.format(
-            param
-        )
-        warnings.warn(msg)
-        nb_out_atts = 1
+    nb_out_atts = _set_nb_out_params_(param, nb_atts)
 
     # Number of models per partition
     nb_models_part = int(np.ceil(nb_target_atts / nb_out_atts))
@@ -112,116 +98,73 @@ def base_selection_algo(metadata, settings, target_atts_list=None):
     return codes
 
 
-def fi_selection_algo(metadata, settings, X, target_atts_list=None):
-    fi_scores = get_fi_scores(X, target_atts_list, metadata)
-    n_clusters = (int(settings["selection"]["param"]), 2)
-    model = SpectralBiclustering(n_clusters=n_clusters, method="log")
-    model.fit(fi_scores)
-    cluster_labels = model.row_labels_
-    codes = labels_to_codes(cluster_labels, target_atts_list)
-    return codes
-
-
-def get_fi_scores(X, target_atts_list, metadata):
-    nb_atts = X.shape[1]
-    nb_target_atts = len(target_atts_list)
-
-    fi = [0] * nb_target_atts
-
-    for att in range(nb_target_atts):
-        if att in metadata["att_types"]["numerical"]:
-            rf = RandomForestRegressor(n_estimators=30, max_features="auto")
-        else:
-            rf = RandomForestClassifier(n_estimators=30, max_features="auto")
-        targets = list(range(nb_atts))
-        targets.remove(att)
-        rf.fit(X[targets], X[[att]])
-        fi[att] = rf.feature_importances_
-
-    F = np.zeros((nb_target_atts, nb_atts), float)
-    for i in range(nb_target_atts):
-        for j in range(nb_atts):
-            if i > j:
-                F[i][j] = fi[i][j]
-            if i < j:
-                F[i][j] = fi[i][j - 1]
-
-    return F
-
-
-def labels_to_codes(cluster_labels, target_atts_list):
-    nb_models = np.max(cluster_labels) + 1
-    nb_atts = cluster_labels.size
-    codes = [[]] * nb_models
-
-    # We start with everything descriptive
-    for model in range(nb_models):
-        codes[model] = [0] * nb_atts
-
-    for model in range(nb_models):
-        for att in range(nb_atts):
-            if cluster_labels[att] == model:
-                codes[model][att] = 1
-    return codes
-
-
-def random_selection_algo(metadata, settings, target_atts_list=None):
-    """
-    A random selection algorithm, to evaluate the performance of both the prediction algorithms.
-
-    """
-
-    # Total number of attributes
+def random_selection_algo(metadata, settings):
     nb_atts = metadata["nb_atts"]
+    nb_tgt = settings.get("param", 1)
+    nb_iterations = settings.get("its", 1)
+    fraction_missing = settings.get("fraction", 0.2)
 
-    # If not specified, all attributes can appear as targets.
-    # Otherwise, use only indicated attributes
-    if target_atts_list is None:
-        target_atts_list = list(range(nb_atts))
+    nb_tgt = _set_nb_out_params_(nb_tgt, nb_atts)
 
-    # Number of possible targets
-    nb_target_atts = len(target_atts_list)
-    sel_param, sel_its = settings["param"], settings["its"]
+    att_idx = np.array(range(nb_atts))
+    result = np.zeros((1, nb_atts))
 
-    # Number of output attributes per model
-    if sel_param >= 0.4:
-        nb_out_atts = int(np.ceil(sel_param))
+    for it_idx in range(nb_iterations):
+        np.random.shuffle(att_idx)
+
+        codes = _create_init(nb_atts, nb_tgt)
+        codes = _add_missing(codes, fraction=fraction_missing)
+        codes = _ensure_desc_atts(codes)
+        codes = codes[:, att_idx]
+        result = np.concatenate((result, codes))
+
+    return result[1:, :]
+
+
+# Helpers
+def _create_init(nb_atts, nb_tgt):
+    res = np.zeros((nb_atts, nb_atts))
+    for k in range(nb_tgt):
+        res += np.eye(nb_atts, k=k)
+
+    return res[0::nb_tgt, :]
+
+
+def _add_missing(init, fraction=0.2):
+    random = np.random.rand(*init.shape)
+
+    noise = np.where(init == 0, random, init)
+    missing = np.where(noise < fraction, -1, noise)
+
+    res = np.floor(missing)
+
+    res = _ensure_desc_atts(res)
+    return res
+
+
+def _ensure_desc_atts(m_codes):
+    for row in m_codes:
+        if 0 not in np.unique(row):
+            idx_of_minus_ones = np.where(row == -1)[0]
+            idx_to_change_to_zero = np.random.choice(idx_of_minus_ones)
+            row[idx_to_change_to_zero] = 0
+
+    return m_codes
+
+
+def _set_nb_out_params_(param, nb_atts):
+    if (param > 0) & (param < 1):
+        nb_out_atts = int(np.ceil(param * nb_atts))
+    elif (param >= 1) & (param < nb_atts):
+        nb_out_atts = int(param)
     else:
-        perc_targ_atts = sel_param
-        nb_out_atts = int(np.ceil(perc_targ_atts * nb_target_atts))
+        msg = """
+        Impossible number of output attributes per model: {}\n
+        This means the value of settings['selection']['param'] was set
+        incorrectly.\n
+        Re-adjusted to default; one model per attribute.
+        """.format(param)
+        warnings.warn(msg)
+        nb_out_atts = 1
 
-    # Number of models
-    nb_models = int(np.ceil(nb_target_atts / nb_out_atts)) * sel_its
-    # One code per model
-    codes = [[]] * nb_models
-
-    for it in range(nb_models):
-        # Varying the number of desc atts
-        nb_desc_atts = np.random.randint(nb_out_atts, nb_atts - nb_out_atts)
-        # Setting missing attributess
-        code = [-1] * nb_atts
-        # Setting target attributes
-        for i in range(0, nb_out_atts):
-            code[i] = 1
-        # Setting desc attributes
-        for i in range(nb_out_atts, nb_out_atts + nb_desc_atts + 1):
-            code[i] = 0
-        np.random.shuffle(code)
-        codes[it] = code
-
-    codes = np.array(codes)
-
-    # Now we repair after possible deficiencies
-    # Counts of 'being target'
-    occ_as_targ = [np.count_nonzero(codes[:, i] == 1) for i in range(codes.shape[1])]
-    mean_occ_as_target = int(np.ceil(np.mean(occ_as_targ)))
-
-    for i, v in enumerate(occ_as_targ):
-        if v == 0:
-            models_to_alter = np.random.randint(
-                1, codes.shape[0], size=mean_occ_as_target
-            )
-            for m in models_to_alter:
-                codes[m, i] = 1
-
-    return codes
+    return nb_out_atts
